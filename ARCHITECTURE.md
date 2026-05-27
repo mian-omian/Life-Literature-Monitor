@@ -12,6 +12,11 @@ The pipeline is designed to run inside a **GitHub Actions workflow** on a daily
 cron schedule, but can also run locally during development and configuration
 iteration.
 
+Authority note: this is supporting documentation. Current authority and
+validated status are recorded in `AGENTS.md`, `CURRENT_TASK.md`, `TASKS.md`,
+`DESIGN.md`, `ACCEPTANCE_CRITERIA.md`, `README.md`, and
+`docs/user_guide.en.md`.
+
 ---
 
 ## Module Map
@@ -34,7 +39,7 @@ src/lifelit/
 ├── dedup.py                # Cross-source deduplication by DOI/PMID/title
 ├── enrichment.py           # Metadata enrichment (S2, OpenAlex, Crossref)
 ├── filtering.py            # 9-rule hardcoded guardrail pipeline
-├── scoring.py              # 11-signal multi-factor scoring engine
+├── scoring.py              # 10-signal multi-factor scoring engine
 │
 ├── llm_client.py           # OpenAI-compatible LLM client abstraction
 ├── llm_triage.py           # LLM-based paper triage runner
@@ -82,9 +87,9 @@ Python to change what papers they see.
 
 ```
 outputs/
-├── latest/           # Symlink/copy of the most recent healthy run
-├── 2026-05-22T14-07/ # Timestamped run snapshots
-├── 2026-05-21T14-07/
+├── latest/           # Copy of the most recent healthy run
+├── 20260522T140700Z/ # Timestamped run snapshots (ISO compact format)
+├── 20260521T140700Z/
 └── ...
 ```
 
@@ -128,7 +133,7 @@ aggregates raw records.
 
 ### 5. Hardcoded Filter Rules by Design
 
-The filtering pipeline (`filtering.py`) uses 9 hardcoded rules rather than a
+The filtering pipeline (`filtering.py`) uses hardcoded rules rather than a
 config-driven rule engine. This was an explicit choice: the rules encode
 domain-specific guardrails (e.g., "preprints without abstracts and without
 venue names are suppressed") that are stable and well-understood. A
@@ -150,13 +155,14 @@ LLM triage is optional and heavily guarded:
 - **Fallback TLDR** (`fallback_tldr.py`) provides rule-based one-line summaries
   when LLM is unavailable or budget is exhausted
 
-### 7. Scoring as Configurable Signal Aggregation
+### 7. Scoring as Registered Signal Aggregation
 
-The scoring engine computes 11 independent signals, each returning a value in
-[0, 1], then aggregates them with per-section weights:
+The current scoring engine registers 10 independent signals, each returning a value in
+its registered range, then aggregates them with per-section weights as a
+**weighted sum**:
 
 ```
-final_score = Σ (signal_value × signal_weight) / Σ signal_weights
+final_score = Σ (signal_value × signal_weight)
 ```
 
 Signals are grouped into **sections** (published, preprinted,
@@ -164,6 +170,10 @@ author_tracked_manual, semantic_recommendations), each with its own active
 signal set and default weights. The signal set is hardcoded in
 `REGISTERED_SIGNALS`; section weights use hardcoded `PRESET_CONTEXTS` (the
 config-driven `section_overrides` schema exists but is not yet wired).
+
+`penalty_signal` is not registered in the current source. Penalty-like effects
+are represented through score-result metadata, warnings, or rule/scoring
+adjustments rather than a configurable signal.
 
 ---
 

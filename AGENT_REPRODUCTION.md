@@ -1,5 +1,37 @@
 # Agent Reproduction Guide
 
+Authority note: this is supporting implementation guidance, not the current
+source of truth. Current code registers 10 scoring signals and does not
+register `penalty_signal`. Use `DESIGN.md`, `docs/user_guide.en.md`, and the
+actual source files under `src/lifelit/` before using this guide for
+implementation. The specifications below describe the intended architecture and
+interfaces; the current implementation has evolved from these specs.
+
+**Key divergences between this guide and current code (2026-05-27):**
+
+- **Phase 2 models**: Actual model field names differ — `RawRecord` uses
+  `source_record_id` (not `source_id`), `CanonicalPaper` uses `journal_name`
+  (not `journal_normalized`) and has `entry_types` (plural, list) rather than
+  `entry_type`, `SectionScoreResult` (not `ScoreResult`) carries `total_score`,
+  `score_breakdown`, `matched_features`, and `llm_triage_selected` (not
+  `llm_triage_eligible`).
+- **Phase 4 normalization**: Produces `CandidatePaper` instances, not directly
+  `CanonicalPaper`. Dedup merges `CandidatePaper`s into `CanonicalPaper`s.
+- **Phase 5 scoring**: Per-topic saturation model (core binary 0.50, context K=2,
+  support K=5, broad K=5) replaces global-flattened tier scoring. `entry_signal`
+  maps `formal_retrieval` → 0.8 (not `formal_publication` → 0.7).
+  `recency_signal` half-life is 365 days for published (not 30). Score
+  aggregation is weighted sum, not weighted average. `recommendation_profile_signal`
+  and `recommendation_rank_signal` are partially functional, not pure stubs.
+- **Phase 7 state**: Uses PyArrow/pandas for Parquet, not polars.
+- **Phase 8 CLI**: No `--verbose` flag. `run` command uses `--config`, `--mode`,
+  `--newest-offset-days`, `--oldest-offset-days`. Source enrichment env var
+  wiring passes through `enrich_all()` parameters, not hardcoded fallbacks.
+- **Health gates**: `curation_size` thresholds are 10–200 papers, exclude rate
+  threshold is 50% (not 90%).
+- **Readiness checks**: Fully offline/deterministic — no network checks or env
+  var checks.
+
 This document is designed for **coding agents** (Claude Code, Cursor, Copilot,
 etc.) to reproduce the LifeLit project from scratch. Each phase is
 self-contained with explicit file paths, interfaces, and acceptance criteria.
@@ -333,7 +365,7 @@ class CanonicalPaper:
 
 @dataclass
 class ScoreResult:
-    """Per-paper scoring output from the 11-signal engine."""
+    """Per-paper scoring output from the 10-signal engine."""
     dedup_key: str
     section: str
     final_score: float
@@ -614,7 +646,7 @@ pytest tests/test_enrichment.py tests/test_filtering.py -v
 
 ## Phase 5: Scoring Engine
 
-**Goal:** 11-signal multi-factor scoring with per-section weights.
+**Goal:** 10-signal multi-factor scoring with per-section weights.
 
 ### Files to Create
 
@@ -647,7 +679,6 @@ REGISTERED_SIGNALS: dict[str, SignalDefinition] = {
     "access_signal": SignalDefinition(..., 0.5, ...),
     "preprint_status_signal": SignalDefinition(..., 0.5, ...),
     "state_signal": SignalDefinition(..., 0.0, ...),
-    "penalty_signal": SignalDefinition(..., 0.0, ...),
 }
 
 # Section definitions with preset contexts
@@ -662,7 +693,7 @@ PRESET_CONTEXTS: dict[str, SectionContext] = {
     "author_tracked_manual": SectionContext(
         active_signals=["entry_signal", "topic_signal", "recency_signal",
                         "metadata_quality_signal", "access_signal",
-                        "preprint_status_signal", "state_signal", "penalty_signal"],
+                        "preprint_status_signal", "state_signal"],
         signal_weights={"entry_signal": 2.0, ...},
         config={},
     ),
@@ -675,7 +706,7 @@ PRESET_CONTEXTS: dict[str, SectionContext] = {
 def _compute_entry_signal(paper, context) -> float: ...
 def _compute_topic_signal(paper, context) -> float: ...
 def _compute_journal_signal(paper, context) -> float: ...
-# ... all 11 signals ...
+# ... all 10 registered signals ...
 
 _SIGNAL_COMPUTERS: dict[str, Callable] = {...}
 
@@ -727,9 +758,12 @@ Half-life defaults to 30 days.
 **preprint_status_signal**: 1.0 if preprint has a published version DOI, 0.5
 otherwise.
 
-**recommendation_profile_signal, recommendation_rank_signal, state_signal,
-penalty_signal**: Currently return neutral defaults (0.5 or 0.0). Designed for
-future implementation.
+**recommendation_profile_signal, recommendation_rank_signal, state_signal**:
+Currently return neutral defaults (0.5 or 0.0). Designed for future
+implementation.
+
+There is no registered `penalty_signal` in the current source. Penalty-like
+effects belong in rule/scoring adjustments, warnings, or score-result metadata.
 
 ### `clinical.py`
 
@@ -748,7 +782,7 @@ def annotate_clinical_trials(
 ```bash
 pytest tests/test_scoring.py -v
 pytest tests/test_clinical.py -v
-# Verify all 11 signals are registered and have computer functions
+# Verify all 10 signals are registered and have computer functions
 ```
 
 ---

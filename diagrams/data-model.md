@@ -5,67 +5,79 @@
 ```mermaid
 classDiagram
     class RawRecord {
-        +str source
-        +str source_id
-        +str title
-        +list~str~ authors
-        +str abstract
-        +str doi
-        +str pmid
-        +str pmcid
-        +str journal
-        +str issn
-        +str eissn
-        +date date
-        +str entry_type
+        +Source source
+        +EntryType entry_type
+        +RetrievalMode retrieval_mode
+        +str query_id
+        +str profile_id
+        +str author_id
+        +datetime retrieved_time
+        +str source_record_id
+        +str source_url
         +dict raw_payload
     }
 
     class CanonicalPaper {
         +str dedup_key
-        +str title
-        +list~str~ authors
-        +str abstract
         +str doi
         +str pmid
         +str pmcid
-        +str journal_normalized
-        +str issn
-        +str eissn
-        +date date
-        +str entry_type
-        +list~str~ source_ids
-        +list~str~ sources
-        +str tldr
-        +int citation_count
-        +bool is_open_access
-        +str published_version_doi
+        +str semantic_scholar_paper_id
+        +str openalex_work_id
         +str preprint_doi
+        +str title
+        +str abstract
+        +list~dict~ authors
+        +str journal_name
+        +str journal_issn
+        +str journal_eissn
+        +str published_date
+        +str received_date
+        +str revised_date
+        +list~Source~ sources
+        +list~EntryType~ entry_types
+        +list~dict~ source_records
+        +str tldr
+        +TldrSource tldr_source
+        +dict openalex_enrichment
+        +dict crossref_enrichment
+        +dict europe_pmc_enrichment
+        +str publication_status
+        +DedupConfidence dedup_confidence
+        +list~str~ enrichment_warnings
     }
 
-    class ScoreResult {
-        +str dedup_key
-        +str section
-        +float final_score
-        +str score_band
-        +dict~str,float~ signal_values
-        +dict~str,float~ signal_weights
-        +dict~str,dict~ signal_evidence
+    class SectionScoreResult {
+        +str canonical_dedup_key
+        +Section section
+        +float total_score
+        +dict~str,float~ score_breakdown
+        +list~str~ matched_features
+        +list~str~ penalties
+        +list~str~ warnings
+        +int rank
+        +str band
+        +str explanation
         +bool deep_enrichment_eligible
         +str deep_enrichment_reason
-        +bool llm_triage_eligible
+        +bool llm_triage_selected
         +str llm_triage_reason
     }
 
     class LlmTriageResult {
-        +str dedup_key
-        +float score_adjustment
-        +float adjusted_score
-        +str tldr
-        +str rationale
-        +str model
-        +int tokens_used
-        +bool from_cache
+        +str canonical_dedup_key
+        +Section section
+        +bool selected_for_triage
+        +str triage_reason
+        +float llm_score_adjustment
+        +dict llm_raw_response
+        +bool cache_hit
+        +str llm_model
+        +int llm_tokens_used
+        +float llm_cost_estimate
+        +str fallback_tldr
+        +datetime triage_timestamp
+        +list~str~ warnings
     }
 
     class ClinicalTrialAnnotation {
@@ -99,8 +111,8 @@ classDiagram
     }
 
     CanonicalPaper "1" --> "*" RawRecord : normalized from
-    ScoreResult "1" --> "1" CanonicalPaper : scores
-    LlmTriageResult "1" --> "1" ScoreResult : triages
+    SectionScoreResult "1" --> "1" CanonicalPaper : scores
+    LlmTriageResult "1" --> "1" SectionScoreResult : triages
     ClinicalTrialAnnotation "1" --> "1" CanonicalPaper : annotates
     SeenPaper "1" --> "1" CanonicalPaper : tracks
     PaperStatus "1" --> "1" CanonicalPaper : curates
@@ -216,16 +228,16 @@ classDiagram
 ## Data Flow Between Phases
 
 ```
-RawRecord[]  ──normalize──►  CanonicalPaper[]  ──dedup──►  CanonicalPaper[]
-  (per source)                   (merged)                    (unique)
+RawRecord[]  ──normalize──►  CandidatePaper[]  ──dedup──►  CanonicalPaper[]
+  (per source)                   (intermediate)               (unique)
 
-CanonicalPaper[]  ──enrich──►  CanonicalPaper[]  ──filter──►  CanonicalPaper[]
-  (unique)                      (+TLDR, +citations)           (quality-gated)
+CanonicalPaper[]  ──enrich──►  CanonicalPaper[]  ──filter──►  FilterDecision[]
+  (unique)                      (+TLDR, +OA, +metadata)       (keep/suppress/exclude)
 
-CanonicalPaper[]  ──score──►  ScoreResult[]  ──triage──►  LlmTriageResult[]
-  (quality-gated)               (11 signals)                 (adjusted)
+CanonicalPaper[]  ──score──►  SectionScoreResult[]  ──triage──►  LlmTriageResult[]
+  (quality-gated)               (10 signals)                    (adjusted)
 
-ScoreResult[] + LlmTriageResult[] + ClinicalTrialAnnotation[]
+SectionScoreResult[] + LlmTriageResult[] + ClinicalTrialAnnotation[]
   ──render──►  review_data.json → report.md, papers.csv, zotero.csv, ...
   ──state───►  seen_papers.parquet, paper_status.parquet, run_index.parquet
 ```

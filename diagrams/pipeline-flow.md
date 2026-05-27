@@ -3,7 +3,7 @@
 ```mermaid
 flowchart TD
     START([Daily cron or manual trigger]) --> CONFIG[Load &amp; validate 13 YAML configs]
-    CONFIG --> READINESS[Readiness checks<br/>API keys · network · state files]
+    CONFIG --> READINESS[Readiness checks<br/>offline-only: config validation<br/>retrieval simulation &amp; source counts]
 
     READINESS --> COMPILE[Compile retrieval strategy<br/>topics → query clauses<br/>journals → ISSN lookup<br/>seeds → S2 profiles]
 
@@ -28,7 +28,7 @@ flowchart TD
 
     ENRICH --> FILTER[Filtering<br/>9-rule guardrail pipeline<br/>technical · type · quality<br/>suppression state]
 
-    FILTER --> SCORE[Scoring engine<br/>11 signals × section weights<br/>topic · journal · recency<br/>metadata · access · preprint]
+    FILTER --> SCORE[Scoring engine<br/>10 registered signals × section weights<br/>topic · journal · recency<br/>metadata · access · preprint]
 
     SCORE --> CLINICAL[Clinical trial annotation<br/>high-level venue matching]
 
@@ -99,7 +99,7 @@ sequentially. Each phase transforms the paper list and may drop or merge
 entries. The filtering phase is the primary quality gate before scoring.
 
 ### Scoring Phase
-The 11-signal engine computes per-paper scores within each section. Sections
+The 10-signal engine computes per-paper scores within each section. Sections
 define which signals are active and their weights. Papers are ranked within
 their section and assigned score bands (high/medium/low).
 

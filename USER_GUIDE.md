@@ -154,8 +154,15 @@ integrity. Fix any errors before proceeding.
 uv run lifelit run --config config --mode dry_run
 ```
 
-A dry run compiles the retrieval strategy and reports what would be fetched
-without making API calls. Use this to verify your topic queries are sensible.
+A dry run skips the retrieval phase (no API calls) but still runs scoring and
+rendering. To check what your config will retrieve before running, use:
+
+```bash
+uv run lifelit retrieval simulate --config config
+```
+
+This compiles the retrieval strategy and reports query counts, source roles,
+selected journals, filter terms, and any warnings or hard errors — all offline.
 
 ### 9. Full Local Run
 

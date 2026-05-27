@@ -6,6 +6,10 @@ A LifeLit run is a single execution of `lifelit run --config config`. It
 follows a strict phase order with no branching or parallelism at the pipeline
 level (individual retrievers run sequentially for API rate-limit safety).
 
+Authority note: this is supporting documentation. Current user-facing
+operations are governed by `README.md` and `docs/user_guide.en.md`. Real
+pipeline runs may call external services and write operating artifacts.
+
 ### Trigger Sources
 
 | Trigger | Mechanism | Mode |
@@ -50,17 +54,17 @@ isolation for CI use.
 
 ### Phase 1: Readiness Checks
 
-Before making any API calls, the pipeline verifies:
+Before making any API calls, the pipeline verifies via offline deterministic
+checks (no network calls, no API keys, no LLM access):
 
-1. Required environment variables are set (`NCBI_API_KEY`,
-   `SEMANTIC_SCHOLAR_API_KEY`, etc.) per the enabled sources
-2. Network reachability to each API endpoint
-3. State files (`seen_papers.parquet`, `paper_status.parquet`,
-   `run_index.parquet`) exist or can be initialized
-4. Output directory is writable
+1. All 13 config files pass strict Pydantic validation
+2. Retrieval strategy compiles without hard errors
+3. At least one source is enabled
+4. Commit policy and output hygiene are intentional
 
 This is implemented in `readiness.py` and runs as a separate CI step in
-`daily.yml` before the pipeline step.
+`daily.yml` before the pipeline step. Use `uv run lifelit readiness --config
+config` to run it locally.
 
 ### Phase 2: Retrieval Strategy Compilation
 
@@ -88,16 +92,9 @@ parameters for each source.
 
 ### Phase 3: Retrieval
 
-Each enabled source is called sequentially. Failures are caught per-source and
-do not halt the pipeline (unless `partial_failure_policy` is set to `fail`).
-
-```
-PubMed ────────── esearch → efetch (batch) ─► RawRecord[]
-Europe PMC ────── search → full text ───────► RawRecord[]
-bioRxiv ───────── date-range API ───────────► RawRecord[]
-Semantic Scholar  recommendations API ──────► RawRecord[]
-Author Tracked ── ORCID → S2 author API ────► RawRecord[]
-```
+Each enabled source is called sequentially. Failures are caught per-source in
+the current implementation. `partial_failure_policy` validates but still needs
+runtime-policy completion before docs can claim full fail/warn behavior.
 
 Date windows are controlled by `runtime.yml`:
 - `newest_offset_days: 1` — exclude papers from today (indexing delay)
@@ -143,7 +140,7 @@ pipeline.
 
 ### Phase 7: Filtering
 
-Nine hardcoded rules run in order. Each rule can keep or suppress a paper.
+Hardcoded rules run in priority order. Each rule can keep or suppress a paper.
 Once suppressed by any rule, a paper is excluded from scoring and output
 (except the suppressed CSV).
 
@@ -153,26 +150,29 @@ Once suppressed by any rule, a paper is excluded from scoring and output
 | 2 | Author-tracked bypass | Author-tracked papers skip suppression |
 | 3 | Manual-import bypass | Manually imported papers skip suppression |
 | 4 | Hard suppress | Re-apply state-persisted suppression |
-| 5 | Publication type | Drop editorials, letters, retractions, etc. |
-| 6 | Recommendation guardrails | Drop S2 recs with insufficient signal |
-| 7 | Preprint guardrails | Drop preprints with no abstract and no venue |
-| 8 | Metadata completeness | Drop papers missing both abstract and journal |
-| 9 | Technical quality | Multi-dimension quality check |
+| 5 | Configured filter rules | Apply user-supplied filters (from filters.yml, not yet runtime-driving) |
+| 6 | Publication type | Drop editorials, letters, retractions, etc. |
+| 7 | Recommendation guardrails | Drop S2 recs with insufficient signal |
+| 8 | Preprint guardrails | Drop preprints with no abstract and no venue |
+| 9 | Metadata completeness | Drop papers missing both abstract and journal |
+| 10 | Technical quality | Multi-dimension quality check |
+| 11 | Default keep | All remaining papers pass through |
 
 ### Phase 8: Scoring
 
-The 11-signal scoring engine computes per-paper scores within four sections:
+The 10-signal scoring engine computes per-paper scores within four sections:
 
 | Section | Active Signals | Default Context |
 |---|---|---|
-| `author_tracked_manual` | entry, topic, recency, metadata_quality, access, preprint_status, state, penalty | Higher base weight on entry_signal |
-| `published` | All 11 signals | Higher weight on journal_signal |
-| `preprinted` | All 11 signals | Higher weight on journal_signal; preprint_status_signal active |
-| `semantic_recommendations` | entry, topic, recommendation_profile, recommendation_rank, recency, metadata_quality, access, state, penalty | Relies on recommendation signals |
+| `author_tracked_manual` | entry, topic, metadata_quality, access, state | Higher base weight on entry_signal |
+| `published` | entry, topic, journal, recency, metadata_quality, access, state | Higher weight on journal_signal |
+| `preprinted` | entry, topic, journal, recency, metadata_quality, access, preprint_status, state | Preprint status signal active |
+| `semantic_recommendations` | entry, topic, recommendation_profile, recommendation_rank, metadata_quality, access, state | Relies on recommendation signals |
 
-Each signal returns a value in `[0, 1]`. The final score is a weighted average
-with per-section default weights (configurable via `scoring.yml` section
-overrides, though this path is not yet wired to runtime).
+Each signal returns a value in its registered range. The final score is a
+**weighted sum** of per-signal values multiplied by per-section weights.
+`scoring.yml` section overrides validate, but the active run path does not use
+the config file's section overrides as the runtime scoring-context source.
 
 Papers are ranked within their section and assigned a **score band**:
 - `high` — top tier, eligible for LLM triage
@@ -198,8 +198,9 @@ If `eligible_sections` is non-empty and an LLM provider is configured:
    LLM with a structured prompt asking for score adjustment and TLDR
 5. **Score adjustment**: The LLM's adjustment is clamped to
    `[-max_score_adjustment, +max_score_adjustment]`
-6. **Fallback**: If the LLM is unavailable, `fallback_tldr.py` generates a
-   rule-based one-line summary from the abstract
+6. **Fallback**: If the LLM is unavailable, a `fallback_tldr` from the LLM
+   triage path provides a summary; the rule-based `fallback_tldr.py` extracts
+   the first sentences of the abstract as a last resort.
 
 ### Phase 11: Output Rendering
 
@@ -223,8 +224,9 @@ Four Parquet files are atomically written:
 2. **paper_status.parquet** — user curation decisions from the Review UI are
    preserved; new papers get `status: active`
 3. **run_index.parquet** — a new row is appended with run metadata
-4. **llm_cache.parquet** — new LLM responses are appended (if
-   `commit_llm_cache` is enabled in privacy config)
+4. **llm_cache.parquet** — new LLM responses are appended by the cache path.
+   Privacy commit-policy flags require a future enforcement task before they
+   can be treated as complete runtime controls.
 
 ### Phase 13: Health Gates
 
@@ -232,10 +234,10 @@ Four gates must pass for the run to be promoted to `outputs/latest/`:
 
 | Gate | Checks | Failure Condition |
 |---|---|---|
-| `source_health` | At least one source returned papers | All retrievers failed |
-| `output_health` | Output files exist and are non-empty | Render phase produced nothing |
-| `curation_size` | Post-filter paper count is reasonable | Too few or suspiciously many papers |
-| `exclude_rate` | Suppression rate is within bounds | >90% of papers filtered out |
+| `source_health` | At least one source returned papers | All attempted sources produced critical failures and zero records |
+| `output_health` | Critical output files exist and are non-empty | `review_data.json` or `run_summary.json` missing |
+| `curation_size` | Curated primary-surface paper count is reasonable | <10 or >200 papers |
+| `exclude_rate` | Technical-exclude rate is within bounds | >50% of papers excluded |
 
 ### Phase 14: Notification & Cleanup
 

@@ -2,6 +2,11 @@
 
 Every configuration field across all 13 YAML files, with implementation status.
 
+Authority note: this file is supporting documentation. For current operating
+guidance, use `README.md`, `docs/user_guide.en.md`, `DESIGN.md`, and
+`docs/config_interface_implementation_plan.md`. Current code registers 10
+scoring signals; `penalty_signal` is not a registered signal.
+
 **Status legend:**
 - ✅ **Wired** — Field is read at runtime and affects behavior
 - ⚠️ **Placeholder** — Field is validated by Pydantic but has no runtime effect
@@ -52,7 +57,7 @@ Data source enablement, roles, and API key mappings.
 |---|---|---|---|---|
 | `enabled` | bool | `true` | ✅ | Gates OpenAlex enrichment |
 | `roles` | list[str] | `["enrichment"]` | ⚠️ | Decorative |
-| `api_key_env` | str | `"OPENALEX_API_KEY"` | 🔧 | Defined but `enrich_all()` from cli.py passes no args; hardcoded fallback happens to match |
+| `api_key_env` | str | `"OPENALEX_API_KEY"` | ✅ | Passed to enrichment via `enrich_all(openalex_api_key_env=...)` |
 
 ### `sources.crossref`
 
@@ -60,8 +65,8 @@ Data source enablement, roles, and API key mappings.
 |---|---|---|---|---|
 | `enabled` | bool | `true` | ✅ | Gates Crossref enrichment |
 | `roles` | list[str] | `["enrichment"]` | ⚠️ | Decorative |
-| `mailto_env` | str | `"CROSSREF_MAILTO"` | 🔧 | Same wiring gap as OpenAlex `api_key_env` |
-| `user_agent_env` | str | `"CROSSREF_USER_AGENT"` | ⚠️ | Defined but never read; no User-Agent header is sent |
+| `mailto_env` | str | `"CROSSREF_MAILTO"` | ✅ | Passed to enrichment via `enrich_all(crossref_mailto_env=...)` |
+| `user_agent_env` | str | `"CROSSREF_USER_AGENT"` | ✅ | Passed to enrichment via `enrich_all(crossref_user_agent_env=...)` |
 
 ---
 
@@ -199,7 +204,7 @@ Scoring sections, registered signals, and per-section overrides.
 
 | Field | Type | Default | Status | Notes |
 |---|---|---|---|---|
-| `signals` | list[str] | 11 signal names | ⚠️ | Never read from config; hardcoded in `REGISTERED_SIGNALS` |
+| `signals` | list[str] | 10 signal names | ⚠️ | Never read from config; hardcoded in `REGISTERED_SIGNALS` |
 
 ### `section_overrides`
 
@@ -209,22 +214,25 @@ Scoring sections, registered signals, and per-section overrides.
 
 ### Signal Implementation Status
 
-Each of the 11 signals is registered in `REGISTERED_SIGNALS` and has a
+Each of the 10 signals is registered in `REGISTERED_SIGNALS` and has a
 computer function in `scoring.py`:
 
 | Signal | Status | Behavior |
 |---|---|---|
 | `entry_signal` | ✅ | Maps entry types to base scores (author_tracked=1.0 → semantic_recommendation=0.5) |
-| `topic_signal` | ✅ | Tiered scoring (core/context/broad/support/boundary) with legacy fallback to flat scoring_terms |
-| `journal_signal` | ✅ | ISSN/name/alias matching against reputation tiers (top=1.0, high=0.5-1.0, standard=0.3) |
-| `recommendation_profile_signal` | ⚠️ | **Stub** — always returns 0.5 neutral |
-| `recommendation_rank_signal` | ⚠️ | **Stub** — always returns 0.5 neutral |
-| `recency_signal` | ✅ | Exponential decay with configurable half-life |
-| `metadata_quality_signal` | ✅ | Fraction of present metadata fields |
-| `access_signal` | ✅ | Open Access status from Europe PMC / OpenAlex |
-| `preprint_status_signal` | ✅ | Rewards preprints with published versions |
+| `topic_signal` | ✅ | Per-topic tiered saturation (core: binary 0.50, context: K=2 × 0.25, support: K=5 × 0.15, broad: K=5 × 0.10); max across topics |
+| `journal_signal` | ✅ | ISSN/name/alias matching against reputation tiers with calibrated raw signal |
+| `recommendation_profile_signal` | ✅ | Extracts S2 profile weights from source records; returns best weight or 0.5 neutral |
+| `recommendation_rank_signal` | ✅ | Linear decay from rank 1 to configured min_rank; returns 0.5 neutral when rank data absent |
+| `recency_signal` | ✅ | Exponential decay with configurable half-life (published: 365d, preprint: 90d) |
+| `metadata_quality_signal` | ✅ | Fraction of present metadata fields (7 fields: doi, pmid, abstract, title, journal, authors, date) |
+| `access_signal` | ✅ | Open Access status from Europe PMC / OpenAlex enrichment |
+| `preprint_status_signal` | ✅ | Rewards preprints with published versions (0.5 + bonus when published, 0.0 otherwise) |
 | `state_signal` | ⚠️ | **Stub** — always returns 0.0 ("no prior state") |
-| `penalty_signal` | ⚠️ | **Stub** — always returns 0.0 ("no penalty patterns configured") |
+
+There is no registered `penalty_signal` in current source. Penalties and
+boundary effects are represented as score-result metadata, warnings, or
+rule/scoring adjustments, not as a configurable registered signal.
 
 ---
 
@@ -296,8 +304,8 @@ Semantic Scholar API parameters.
 |---|---|---|---|---|
 | `recommendation_profiles` | list[RecommendationProfile] | `[]` | ⚠️ | **Entire RecommendationProfile model is dead code** |
 | `recommendation_limit` | int | `20` | ✅ | Passed to S2 API |
-| `standard_enrichment_fields` | list[str] | `["tldr"]` | 🔧 | Defined but `enrich_all()` uses hardcoded default |
-| `deep_enrichment_top_n` | int | `0` | ⚠️ | Defined but never read; deep enrichment step is not implemented |
+| `standard_enrichment_fields` | list[str] | `["tldr"]` | ✅ | Passed to enrichment path via `s2_fields` |
+| `deep_enrichment_top_n` | int | `0` | ✅ | Read by CLI orchestrator; gates deep S2 enrichment step |
 | `search_enabled_for_daily` | bool | `false` | ⚠️ | Defined but never read |
 
 ---
@@ -319,21 +327,21 @@ All 54 author entries in the current config are fully functional.
 
 | Config File | Total Fields | Wired | Placeholder | Coverage |
 |---|---|---|---|---|
-| `sources.yml` | 20 | 12 | 8 | 60% |
+| `sources.yml` | 20 | 15 | 5 | 75% |
 | `runtime.yml` | 5 | 3 | 2 | 60% |
 | `output.yml` | 7 | 6 | 1 | 86% |
 | `filters.yml` | 1 (list) | 0 | 1 | 0% |
 | `privacy.yml` | 4 | 0 | 4 | 0% |
 | `llm.yml` | 16 | 16 | 0 | 100% |
 | `storage.yml` | 8 | 6 | 2 | 75% |
-| `scoring.yml` | 3 (top-level) + 11 signals | 0 config fields, 7/11 signals | entire config surface + 4 stub signals | 0% config, 64% signals |
+| `scoring.yml` | 3 (top-level) + 10 signals | 0 config fields, 9/10 signals | top-level config surface + 1 neutral/default signal | 0% config, 90% signals |
 | `journals.yml` | 11 | 9 | 2 | 82% |
 | `topics.yml` | 18 | 17 | 1 | 94% |
 | `seeds.yml` | 4 | 2 | 2 | 50% |
-| `semantic_scholar.yml` | 5 | 1 | 4 | 20% |
+| `semantic_scholar.yml` | 5 | 3 | 2 | 60% |
 | `authors.yml` | 2 | 2 | 0 | 100% |
-| **Total** | **104** | **74** | **30** | **~71%** |
+| **Total** | **104** | **79** | **25** | **~76%** |
 
-Note: "Wired" counts include both fully-implemented fields and stub signals
-(which are wired end-to-end but return neutral defaults). Excluding the 4 stub
-signals, the total wired count is **70/104 ≈ 67%**.
+Note: this table is approximate supporting documentation, not executable
+evidence. "Wired" counts should be revalidated by a future config-to-runtime
+contract task before being used as a completion claim.
