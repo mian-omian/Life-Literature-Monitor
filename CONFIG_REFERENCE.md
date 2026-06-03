@@ -1,347 +1,163 @@
 # Config Reference
 
-Every configuration field across all 13 YAML files, with implementation status.
+This is a supporting, source-current overview of the 13 YAML config files.
+`src/lifelit/config.py`, `DESIGN.md`, and `docs/user_guide.en.md` remain
+authoritative.
 
-Authority note: this file is supporting documentation. For current operating
-guidance, use `README.md`, `docs/user_guide.en.md`, `DESIGN.md`, and
-`docs/config_interface_implementation_plan.md`. Current code registers 10
-scoring signals; `penalty_signal` is not a registered signal.
+Status legend:
 
-**Status legend:**
-- ✅ **Wired** — Field is read at runtime and affects behavior
-- ⚠️ **Placeholder** — Field is validated by Pydantic but has no runtime effect
-- 🔧 **Hardcoded** — Config value exists but behavior uses hardcoded defaults
-
----
+- **Active** — read by the current run path and affects behavior or visible
+  effective-config reporting.
+- **Evidence-only** — compiled or shown as evidence but not a full behavior
+  control.
+- **Planned** — accepted or documented for future work, with no current runtime
+  implementation.
 
 ## sources.yml
 
-Data source enablement, roles, and API key mappings.
+Source enablement, source roles, and environment-variable names are active.
+The run path uses roles to decide formal retrieval, supplementary retrieval,
+preprint retrieval, recommendation retrieval, standard/deep enrichment, and
+provider-specific env forwarding.
 
-### `sources.pubmed`
+Key notes:
 
-| Field | Type | Default | Status | Notes |
-|---|---|---|---|---|
-| `enabled` | bool | `true` | ✅ | Gates PubMed retrieval in cli.py |
-| `roles` | list[str] | `["formal_retrieval"]` | ⚠️ | Decorative — role is hardcoded in retrieval_strategy.py |
-| `api_key_env` | str | `"NCBI_API_KEY"` | ✅ | Env var name for API key |
-| `daily_date_type` | str | `"edat"` | ✅ | PubMed date field for daily queries |
-| `backfill_date_type` | str | `"pdat"` | ⚠️ | Defined but never read; backfill logic is not implemented |
-
-### `sources.europe_pmc`
-
-| Field | Type | Default | Status | Notes |
-|---|---|---|---|---|
-| `enabled` | bool | `true` | ✅ | Gates Europe PMC retrieval |
-| `roles` | list[str] | `["supplementary_formal_retrieval", "enrichment"]` | ⚠️ | Decorative |
-
-### `sources.biorxiv`
-
-| Field | Type | Default | Status | Notes |
-|---|---|---|---|---|
-| `enabled` | bool | `true` | ✅ | Gates bioRxiv retrieval |
-| `roles` | list[str] | `["preprint_retrieval"]` | ⚠️ | Decorative |
-| `date_field` | str | `"posted_date"` | ⚠️ | Accepted by retriever but docstring says "Ignored (present for caller consistency)" |
-
-### `sources.semantic_scholar`
-
-| Field | Type | Default | Status | Notes |
-|---|---|---|---|---|
-| `enabled` | bool | `true` | ✅ | Gates Semantic Scholar retrieval |
-| `roles` | list[str] | `["recommendation_retrieval", "standard_enrichment", "deep_enrichment"]` | ⚠️ | Decorative |
-| `api_key_env` | str | `"SEMANTIC_SCHOLAR_API_KEY"` | ✅ | Env var name for API key |
-
-### `sources.openalex`
-
-| Field | Type | Default | Status | Notes |
-|---|---|---|---|---|
-| `enabled` | bool | `true` | ✅ | Gates OpenAlex enrichment |
-| `roles` | list[str] | `["enrichment"]` | ⚠️ | Decorative |
-| `api_key_env` | str | `"OPENALEX_API_KEY"` | ✅ | Passed to enrichment via `enrich_all(openalex_api_key_env=...)` |
-
-### `sources.crossref`
-
-| Field | Type | Default | Status | Notes |
-|---|---|---|---|---|
-| `enabled` | bool | `true` | ✅ | Gates Crossref enrichment |
-| `roles` | list[str] | `["enrichment"]` | ⚠️ | Decorative |
-| `mailto_env` | str | `"CROSSREF_MAILTO"` | ✅ | Passed to enrichment via `enrich_all(crossref_mailto_env=...)` |
-| `user_agent_env` | str | `"CROSSREF_USER_AGENT"` | ✅ | Passed to enrichment via `enrich_all(crossref_user_agent_env=...)` |
-
----
+- PubMed and Europe PMC formal retrieval use compiled topic/journal strategy.
+- bioRxiv uses posted-date style retrieval and local topic filtering.
+- Semantic Scholar Recommendations are active; daily Search is deferred.
+- OpenAlex and Crossref enrichment use configured contact/API env names.
 
 ## runtime.yml
 
-Pipeline execution parameters.
+Active fields:
 
-| Field | Type | Default | Status | Notes |
-|---|---|---|---|---|
-| `mode` | str | `"daily"` | ✅ | Run mode; CLI can override |
-| `timezone` | str | `"Asia/Shanghai"` | ⚠️ | Defined but never applied — pipeline hardcodes UTC |
-| `newest_offset_days` | int | `1` | ✅ | Exclude papers newer than N days |
-| `oldest_offset_days` | int | `7` | ✅ | Look back N days |
-| `partial_failure_policy` | str | `"warn"` | ⚠️ | Defined but never checked at runtime |
+- `mode`
+- `timezone`
+- `newest_offset_days`
+- `oldest_offset_days`
+- `partial_failure_policy`
+- `skip_novelty_filter`
+- `s2_suppression_cooldown_days`
 
----
+Runtime timezone participates in visible run-window/report policy. Partial
+failure policy is applied by runtime health handling.
 
 ## output.yml
 
-Output format toggles. Each maps to a render function in `render.py`.
+Active outputs:
 
-| Field | Type | Default | Status | Notes |
-|---|---|---|---|---|
-| `review_data_json` | bool | `true` | ✅ | Structured JSON for downstream consumers |
-| `report_md` | bool | `true` | ✅ | Human-readable Markdown briefing |
-| `papers_csv` | bool | `true` | ✅ | Flat CSV of all papers |
-| `zotero_csv` | bool | `true` | ✅ | Zotero-importable CSV |
-| `suppressed_csv` | bool | `true` | ✅ | CSV of filtered-out papers |
-| `run_summary_json` | bool | `true` | ✅ | Run-level statistics |
-| `static_html` | bool | `false` | ⚠️ | **No renderer exists.** Config placeholder only |
+- `review_data_json`
+- `report_md`
+- `papers_csv`
+- `zotero_csv`
+- `suppressed_csv`
+- `run_summary_json`
 
----
+Planned output:
+
+- `static_html` is planned only. No static HTML renderer exists in the current
+  code.
 
 ## filters.yml
 
-Config-driven filter rules. **Schema exists but pipeline uses hardcoded rules.**
-
-| Field | Type | Default | Status | Notes |
-|---|---|---|---|---|
-| `filters` | list[FilterRule] | `[]` | ⚠️ | FilterRule model is fully specified (targets, operators, actions) but never consumed. Pipeline uses 9 hardcoded rules in filtering.py |
-
----
+Configured filter rules are active. The run path forwards `config.filters` into
+`apply_filters`, where enabled rules are evaluated in YAML order after the
+technical/bypass/persisted-suppression/formal-journal-whitelist guardrails and
+before later hardcoded publication/recommendation/preprint/metadata/quality
+guardrails.
 
 ## privacy.yml
 
-Privacy controls. **Entire module is a placeholder — no field is read at
-runtime.**
-
-| Field | Type | Default | Status | Notes |
-|---|---|---|---|---|
-| `commit_llm_cache` | bool | `false` | ⚠️ | Never read; LLM cache is committed unconditionally |
-| `commit_raw_llm_prompts` | bool | `false` | ⚠️ | Never read; raw prompts are never stored |
-| `commit_raw_api_payloads` | bool | `false` | ⚠️ | Never read; raw payloads are never stored |
-| `include_abstracts_in_outputs` | bool | `true` | ⚠️ | Never read; abstracts are always included in outputs |
-
----
+Privacy policy is active for output abstract redaction and secret-safe runtime
+visibility. Raw prompt and raw API payload policy is represented as
+`no_new_raw_writes`; raw secret values must never be committed.
 
 ## llm.yml
 
-LLM provider, eligibility, budget, and cache configuration. **All fields are
-fully wired.**
-
-### `provider`
-
-| Field | Type | Default | Status |
-|---|---|---|---|
-| `base_url_env` | str | (env var name) | ✅ |
-| `api_key_env` | str | (env var name) | ✅ |
-| `model_env` | str | (env var name) | ✅ |
-
-### Top-level
-
-| Field | Type | Default | Status | Notes |
-|---|---|---|---|---|
-| `eligible_sections` | list[str] | `["semantic_recommendations", "published", "preprinted"]` | ✅ | Controls which sections get LLM triage |
-| `max_papers_per_run` | int | `0` | ✅ | Hard cap on triaged papers per run |
-| `max_papers_per_section` | int | `0` | ✅ | Cap per section |
-| `max_score_adjustment` | float | `0.0` | ✅ | LLM score adjustment clamp |
-
-### `budget`
-
-| Field | Type | Default | Status |
-|---|---|---|---|
-| `per_run_token_limit` | int | `200000` | ✅ |
-| `per_paper_token_limit` | int | `4000` | ✅ |
-| `per_run_cost_limit` | float | `2.00` | ✅ |
-| `per_paper_cost_limit` | float | `0.05` | ✅ |
-| `cost_per_1k_input_tokens` | float | `0.001` | ✅ |
-| `cost_per_1k_output_tokens` | float | `0.002` | ✅ |
-
-### `cache`
-
-| Field | Type | Default | Status |
-|---|---|---|---|
-| `enabled` | bool | `true` | ✅ |
-| `path` | str | `"state/llm_cache.parquet"` | ✅ |
-
-### `fallback_tldr`
-
-| Field | Type | Default | Status |
-|---|---|---|---|
-| `enabled` | bool | `true` | ✅ |
-| `max_length` | int | `280` | ✅ |
-
----
+LLM provider env names, eligible sections, paper caps, score adjustment limits,
+budget, cache, and fallback TLDR settings are active when LLM triage is enabled
+and the required environment variables are present.
 
 ## storage.yml
 
-State and output directory paths, commit policy, and retention.
-
-| Field | Type | Default | Status | Notes |
-|---|---|---|---|---|
-| `state_dir` | str | `"state"` | ✅ | Parquet file directory |
-| `output_dir` | str | `"outputs/latest"` | ✅ | Promoted output directory |
-| `feedback_events_dir` | str | `"feedback/events"` | ✅ | Feedback YAML directory |
-| `commit_state` | bool | `true` | ✅ | Checked by readiness.py and CI workflow |
-| `commit_outputs_latest` | bool | `true` | ✅ | Checked by readiness.py and CI workflow |
-| `commit_output_snapshots` | bool | `true` | ⚠️ | Defined but never checked at runtime |
-| `retain_runs` | int | `30` | ✅ | Snapshot retention count |
-| `atomic_writes` | bool | `true` | ⚠️ | Defined but never checked; atomic writes are always used |
-
----
+Storage policy is active for state/output directories, atomic writes, latest
+promotion, snapshot retention, and workflow staging policy. Commit flags govern
+what the workflow stages; they do not grant agents permission to commit or push.
 
 ## scoring.yml
 
-Scoring sections, registered signals, and per-section overrides.
+Scoring uses 10 registered signals. Section overrides are active in the run
+path and merge into runtime scoring contexts after preset, topic, and journal
+context construction.
 
-### `sections`
+The four macro sections are:
 
-| Field | Type | Default | Status | Notes |
-|---|---|---|---|---|
-| `sections` | list[str] | `["author_tracked_manual", "published", "preprinted", "semantic_recommendations"]` | ⚠️ | Never read from config; hardcoded in `PRESET_CONTEXTS` |
+- `author_tracked_manual`
+- `published`
+- `preprinted`
+- `semantic_recommendations`
 
-### `signals`
+Registered signals:
 
-| Field | Type | Default | Status | Notes |
-|---|---|---|---|---|
-| `signals` | list[str] | 10 signal names | ⚠️ | Never read from config; hardcoded in `REGISTERED_SIGNALS` |
-
-### `section_overrides`
-
-| Field | Type | Default | Status | Notes |
-|---|---|---|---|---|
-| `section_overrides` | dict[str, SectionOverride] | `{published: {journal_signal: 2.0}, preprinted: {journal_signal: 2.0}}` | ⚠️ | **Entire model (~88 lines) is validated but never applied to scoring contexts.** The overrides in the config file have zero effect. |
-
-### Signal Implementation Status
-
-Each of the 10 signals is registered in `REGISTERED_SIGNALS` and has a
-computer function in `scoring.py`:
-
-| Signal | Status | Behavior |
-|---|---|---|
-| `entry_signal` | ✅ | Maps entry types to base scores (author_tracked=1.0 → semantic_recommendation=0.5) |
-| `topic_signal` | ✅ | Per-topic tiered saturation (core: binary 0.50, context: K=2 × 0.25, support: K=5 × 0.15, broad: K=5 × 0.10); max across topics |
-| `journal_signal` | ✅ | ISSN/name/alias matching against reputation tiers with calibrated raw signal |
-| `recommendation_profile_signal` | ✅ | Extracts S2 profile weights from source records; returns best weight or 0.5 neutral |
-| `recommendation_rank_signal` | ✅ | Linear decay from rank 1 to configured min_rank; returns 0.5 neutral when rank data absent |
-| `recency_signal` | ✅ | Exponential decay with configurable half-life (published: 365d, preprint: 90d) |
-| `metadata_quality_signal` | ✅ | Fraction of present metadata fields (7 fields: doi, pmid, abstract, title, journal, authors, date) |
-| `access_signal` | ✅ | Open Access status from Europe PMC / OpenAlex enrichment |
-| `preprint_status_signal` | ✅ | Rewards preprints with published versions (0.5 + bonus when published, 0.0 otherwise) |
-| `state_signal` | ⚠️ | **Stub** — always returns 0.0 ("no prior state") |
-
-There is no registered `penalty_signal` in current source. Penalties and
-boundary effects are represented as score-result metadata, warnings, or
-rule/scoring adjustments, not as a configurable registered signal.
-
----
+- `entry_signal`
+- `topic_signal`
+- `journal_signal`
+- `recommendation_profile_signal`
+- `recommendation_rank_signal`
+- `recency_signal`
+- `metadata_quality_signal`
+- `access_signal`
+- `preprint_status_signal`
+- `state_signal`
 
 ## journals.yml
 
-Journal whitelist with canonical names, reputation tiers, and metadata.
+Journal entries are active for:
 
-| Field | Type | Status | Notes |
-|---|---|---|---|
-| `name` | str | ✅ | Canonical journal name |
-| `aliases` | list[str] | ✅ | Alternative names for normalization matching |
-| `issn` | list[str] | ✅ | Print ISSN(s) for matching |
-| `eissn` | list[str] | ✅ | Electronic ISSN(s) for matching |
-| `roles` | list[str] | ✅ | `normalize`, `reputation`, `formal_retrieval` — consumed by normalization, scoring, and retrieval |
-| `reputation_tier` | str \| null | ✅ | `top`, `high`, `standard`, or null — mapped to scores in `_effective_journal_signal()` |
-| `journal_signal_coefficient` | float \| null | ✅ | Modulates high-tier journal scores to [0.5, 1.0] |
-| `clinical_trial_high_level` | bool | ✅ | Wired through clinical.py → render.py |
-| `openalex_source_id` | str \| null | ⚠️ | Ingestible by profile pipeline but **never used at runtime** |
-| `nlm_abbreviation` | str \| null | ⚠️ | Same as openalex_source_id — profile-only dead end |
+- canonical name/alias/ISSN/eISSN matching;
+- normalization;
+- formal published whitelist filtering;
+- reputation scoring;
+- clinical-trial venue annotation.
 
----
+`openalex_source_id` and `nlm_abbreviation` are accepted identifiers and may be
+used by profile/config workflows and identity evidence; current runtime matching
+primarily relies on name, alias, ISSN, and eISSN.
 
 ## topics.yml
 
-Research topic definitions driving retrieval and scoring.
+Topic fields are active across retrieval, scoring, and LLM context according to
+their specific field:
 
-| Field | Type | Status | Notes |
-|---|---|---|---|
-| `name` | str | ✅ | Topic identifier |
-| `id` | str | ✅ | Same as name |
-| `label` | str | ✅ | Same as name |
-| `retrieval_logic` | str | ⚠️ | `MESH_OR_KEYWORDS` only; `MESH_ONLY` and `KEYWORDS_ONLY` have identical behavior |
-| `priority` | str | ✅ | `strong` vs `secondary` affects entry signal |
-| `intent` | str | ✅ | Human-readable; not used in retrieval/scoring |
-| `keywords` | list[str] | ✅ | Legacy flat keyword list |
-| `mesh_terms` | list[str] | ✅ | MeSH terms for retrieval |
-| `pubmed_mesh_terms` | list[str] | ✅ | PubMed-specific MeSH clauses |
-| `pubmed_free_text_roots` | list[str] | ✅ | PubMed free-text search roots |
-| `europe_pmc_title_abstract_roots` | list[str] | ✅ | Europe PMC TITLE/ABSTRACT search |
-| `biorxiv_filter_terms` | list[str] | ✅ | Post-retrieval bioRxiv filter |
-| `scoring_terms` | list[str] | ✅ | Flat scoring terms (legacy mode) |
-| `llm_context_terms` | list[str] | ✅ | Injected into LLM prompt context |
-| `core_terms` | list[str] | ✅ | Tier 1 scoring terms |
-| `context_terms` | list[str] | ✅ | Tier 2 scoring terms |
-| `broad_terms` | list[str] | ✅ | Tier 3 scoring terms |
-| `support_terms` | list[str] | ✅ | Tier 4 scoring terms |
-| `boundary_terms` | list[str] | ✅ | Tier 5 scoring terms (not in current config) |
+- PubMed and Europe PMC fields drive formal query clauses.
+- bioRxiv filter terms drive local preprint filtering.
+- tiered topic terms drive per-topic saturation scoring.
+- LLM context terms are injected into triage prompts.
 
----
+Topic tier scoring is scoring behavior only; it does not silently rewrite
+retrieval semantics.
 
 ## seeds.yml
 
-Seed papers for Semantic Scholar recommendations.
-
-| Field | Type | Status | Notes |
-|---|---|---|---|
-| `positive_seeds` | list[str] | ✅ | DOI list → S2 recommendations API |
-| `negative_seeds` | list[str] | ✅ | Passed to S2 API as exclusion signal |
-| `boundary_seeds` | list[str] | ⚠️ | Compiled into strategy but **never passed to the S2 API call** |
-| `seed_profiles` | list[SeedProfile] | ⚠️ | **Entire SeedProfile model is dead code** — never read by any source file |
-
----
+Global seeds and seed profiles are active for Semantic Scholar recommendation
+retrieval where enabled. Boundary seeds are evidence-only calibration material;
+they are not a complete behavior-driving negative or suppression mechanism.
 
 ## semantic_scholar.yml
 
-Semantic Scholar API parameters.
+Active fields:
 
-| Field | Type | Default | Status | Notes |
-|---|---|---|---|---|
-| `recommendation_profiles` | list[RecommendationProfile] | `[]` | ⚠️ | **Entire RecommendationProfile model is dead code** |
-| `recommendation_limit` | int | `20` | ✅ | Passed to S2 API |
-| `standard_enrichment_fields` | list[str] | `["tldr"]` | ✅ | Passed to enrichment path via `s2_fields` |
-| `deep_enrichment_top_n` | int | `0` | ✅ | Read by CLI orchestrator; gates deep S2 enrichment step |
-| `search_enabled_for_daily` | bool | `false` | ⚠️ | Defined but never read |
+- `recommendation_profiles`
+- `recommendation_limit`
+- `standard_enrichment_fields`
+- `deep_enrichment_top_n`
 
----
+Planned/deferred field:
+
+- `search_enabled_for_daily` remains deferred; daily Semantic Scholar Search is
+  not the current retrieval path.
 
 ## authors.yml
 
-Tracked author ORCID IDs.
-
-| Field | Type | Status | Notes |
-|---|---|---|---|
-| `author_id` | str | ✅ | ORCID identifier |
-| `author_id_type` | str | ✅ | Always `"orcid"` |
-
-All 54 author entries in the current config are fully functional.
-
----
-
-## Summary: Implementation Coverage by Config File
-
-| Config File | Total Fields | Wired | Placeholder | Coverage |
-|---|---|---|---|---|
-| `sources.yml` | 20 | 15 | 5 | 75% |
-| `runtime.yml` | 5 | 3 | 2 | 60% |
-| `output.yml` | 7 | 6 | 1 | 86% |
-| `filters.yml` | 1 (list) | 0 | 1 | 0% |
-| `privacy.yml` | 4 | 0 | 4 | 0% |
-| `llm.yml` | 16 | 16 | 0 | 100% |
-| `storage.yml` | 8 | 6 | 2 | 75% |
-| `scoring.yml` | 3 (top-level) + 10 signals | 0 config fields, 9/10 signals | top-level config surface + 1 neutral/default signal | 0% config, 90% signals |
-| `journals.yml` | 11 | 9 | 2 | 82% |
-| `topics.yml` | 18 | 17 | 1 | 94% |
-| `seeds.yml` | 4 | 2 | 2 | 50% |
-| `semantic_scholar.yml` | 5 | 3 | 2 | 60% |
-| `authors.yml` | 2 | 2 | 0 | 100% |
-| **Total** | **104** | **79** | **25** | **~76%** |
-
-Note: this table is approximate supporting documentation, not executable
-evidence. "Wired" counts should be revalidated by a future config-to-runtime
-contract task before being used as a completion claim.
+Tracked authors are active when configured with stable supported identifiers.
+Runtime pure-name author tracking is outside the MVP boundary.

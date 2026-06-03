@@ -1,274 +1,143 @@
 # Workflow
 
-## Daily Run Lifecycle
+This document explains the current LifeLit run lifecycle and command safety
+boundaries. It is supporting documentation; use `docs/user_guide.en.md` and
+the source for authoritative details.
 
-A LifeLit run is a single execution of `lifelit run --config config`. It
-follows a strict phase order with no branching or parallelism at the pipeline
-level (individual retrievers run sequentially for API rate-limit safety).
+## Command Risk Levels
 
-Authority note: this is supporting documentation. Current user-facing
-operations are governed by `README.md` and `docs/user_guide.en.md`. Real
-pipeline runs may call external services and write operating artifacts.
+### Read-only or dry inspection
 
-### Trigger Sources
+These are the safest first commands:
 
-| Trigger | Mechanism | Mode |
-|---|---|---|
-| Scheduled daily run | GitHub Actions cron: `7 6 * * *` UTC (≈14:07 CST) | `daily` |
-| Manual workflow dispatch | `workflow_dispatch` with mode selector | `daily`, `dry_run`, `backfill`, `manual` |
-| Local development | `uv run lifelit run --config config` | `daily` (default) |
-| Simulated retrieval | `uv run lifelit retrieval simulate` | offline / dry |
-
----
-
-## Phase-by-Phase Walkthrough
-
-### Phase 0: Config Loading & Validation
-
-```
-config/ (13 YAML files)
-  │
-  ├── sources.yml ──────────► SourcesConfig
-  ├── runtime.yml ──────────► RuntimeConfig
-  ├── output.yml ───────────► OutputConfig
-  ├── filters.yml ──────────► FiltersConfig
-  ├── privacy.yml ──────────► PrivacyConfig
-  ├── llm.yml ──────────────► LlmConfig
-  ├── storage.yml ──────────► StorageConfig
-  ├── seeds.yml ────────────► SeedsConfig
-  ├── scoring.yml ──────────► ScoringConfig
-  ├── journals.yml ─────────► JournalsConfig
-  ├── authors.yml ──────────► AuthorsConfig
-  ├── topics.yml ───────────► TopicsConfig
-  └── semantic_scholar.yml ─► SemanticScholarConfig
-                                   │
-                                   ▼
-                              AppConfig
-                         (Pydantic v2 validated)
+```powershell
+uv run lifelit --help
+uv run lifelit validate-config --config config
+uv run lifelit retrieval simulate --config config
+uv run lifelit readiness --config config
+uv run lifelit review --dry-run
+uv run lifelit notify --dry-run
 ```
 
-Each YAML file is loaded and validated against its Pydantic model. Type errors,
-missing required fields, and cross-reference violations are caught here before
-any network calls happen. The `validate-config` command runs this phase in
-isolation for CI use.
+They validate or summarize local state without real retrieval, LLM calls, or
+SMTP sends.
 
-### Phase 1: Readiness Checks
+### Local artifact writers
 
-Before making any API calls, the pipeline verifies via offline deterministic
-checks (no network calls, no API keys, no LLM access):
+These can write local files under configured directories:
 
-1. All 13 config files pass strict Pydantic validation
-2. Retrieval strategy compiles without hard errors
-3. At least one source is enabled
-4. Commit policy and output hygiene are intentional
-
-This is implemented in `readiness.py` and runs as a separate CI step in
-`daily.yml` before the pipeline step. Use `uv run lifelit readiness --config
-config` to run it locally.
-
-### Phase 2: Retrieval Strategy Compilation
-
-`retrieval_strategy.py` compiles the declarative config into executable
-retrieval plans:
-
-```
-topics.yml entries
-  │
-  ├── pubmed_mesh_terms ─────► PubMed [MeSH Terms] clauses
-  ├── pubmed_free_text_roots ► PubMed [All Fields] clauses
-  ├── europe_pmc_title_abstract_roots ► Europe PMC TITLE/ABSTRACT clauses
-  ├── biorxiv_filter_terms ──► bioRxiv post-retrieval filter
-  ├── scoring_terms ─────────► Topic signal scoring
-  └── llm_context_terms ─────► LLM prompt context injection
-
-seeds.yml positive_seeds ────► Semantic Scholar recommendation input
-
-journals.yml (formal_retrieval role) ► PubMed/EPMC journal filter
+```powershell
+uv run lifelit run --config config --mode dry_run
+uv run lifelit feedback apply
+uv run lifelit feedback config-draft
+uv run lifelit profile compile
+uv run lifelit config-promote
 ```
 
-The compiled strategy is a set of dataclass instances (`PubmedCompiledStrategy`,
-`EuropePMCCompiledStrategy`, etc.) carrying the exact query strings and
-parameters for each source.
+`run --mode dry_run` skips source retrieval, but it is not read-only.
 
-### Phase 3: Retrieval
+### External operations
 
-Each enabled source is called sequentially. Failures are caught per-source in
-the current implementation. `partial_failure_policy` validates but still needs
-runtime-policy completion before docs can claim full fail/warn behavior.
+These may call real services depending on config and environment variables:
 
-Date windows are controlled by `runtime.yml`:
-- `newest_offset_days: 1` — exclude papers from today (indexing delay)
-- `oldest_offset_days: 7` — look back one week
-
-### Phase 4: Normalization
-
-Raw records from all sources are converted to `CanonicalPaper` instances:
-
-- Journal names are matched against `journals.yml` by name, alias, ISSN, and
-  eISSN, then replaced with their canonical form
-- Author names are normalized (whitespace, Unicode)
-- Date strings are parsed into `date` objects
-- Entry types are classified: `author_tracked`, `formal_publication`,
-  `preprint`, `semantic_recommendation`, `manual_import`
-
-### Phase 5: Deduplication
-
-Papers are deduplicated across sources using a priority chain:
-
-1. **DOI match** (exact, case-insensitive) — strongest signal
-2. **PMID match** — PubMed ID is unique per paper
-3. **Title hash match** — normalized title (lowercase, punctuation-stripped)
-   as fallback
-
-When duplicates are found, the entry with the richest metadata (most non-empty
-fields) is kept, and the others' source IDs are merged into it.
-
-### Phase 6: Enrichment
-
-Each canonical paper is enriched with external metadata:
-
-| Enrichment | Source | Fields Added |
-|---|---|---|
-| TLDR summaries | Semantic Scholar API | `tldr` |
-| Citation count | Semantic Scholar API | `citation_count` |
-| Open Access status | OpenAlex API | `is_open_access` |
-| Published version DOI | Crossref API | `published_version_doi` (for preprints) |
-| Additional metadata | Crossref API | journal, date, author refinements |
-
-Enrichment is opportunistic — failures are logged but do not block the
-pipeline.
-
-### Phase 7: Filtering
-
-Hardcoded rules run in priority order. Each rule can keep or suppress a paper.
-Once suppressed by any rule, a paper is excluded from scoring and output
-(except the suppressed CSV).
-
-| # | Rule | Effect |
-|---|---|---|
-| 1 | Technical exclude | Drop papers missing title, ID, and authors |
-| 2 | Author-tracked bypass | Author-tracked papers skip suppression |
-| 3 | Manual-import bypass | Manually imported papers skip suppression |
-| 4 | Hard suppress | Re-apply state-persisted suppression |
-| 5 | Configured filter rules | Apply user-supplied filters (from filters.yml, not yet runtime-driving) |
-| 6 | Publication type | Drop editorials, letters, retractions, etc. |
-| 7 | Recommendation guardrails | Drop S2 recs with insufficient signal |
-| 8 | Preprint guardrails | Drop preprints with no abstract and no venue |
-| 9 | Metadata completeness | Drop papers missing both abstract and journal |
-| 10 | Technical quality | Multi-dimension quality check |
-| 11 | Default keep | All remaining papers pass through |
-
-### Phase 8: Scoring
-
-The 10-signal scoring engine computes per-paper scores within four sections:
-
-| Section | Active Signals | Default Context |
-|---|---|---|
-| `author_tracked_manual` | entry, topic, metadata_quality, access, state | Higher base weight on entry_signal |
-| `published` | entry, topic, journal, recency, metadata_quality, access, state | Higher weight on journal_signal |
-| `preprinted` | entry, topic, journal, recency, metadata_quality, access, preprint_status, state | Preprint status signal active |
-| `semantic_recommendations` | entry, topic, recommendation_profile, recommendation_rank, metadata_quality, access, state | Relies on recommendation signals |
-
-Each signal returns a value in its registered range. The final score is a
-**weighted sum** of per-signal values multiplied by per-section weights.
-`scoring.yml` section overrides validate, but the active run path does not use
-the config file's section overrides as the runtime scoring-context source.
-
-Papers are ranked within their section and assigned a **score band**:
-- `high` — top tier, eligible for LLM triage
-- `medium` — middle tier, included in outputs
-- `low` — bottom tier, included but de-emphasized
-
-### Phase 9: Clinical Trial Annotation
-
-Papers are checked against journals marked with `clinical_trial_high_level:
-true` in `journals.yml`. Matches are annotated with venue name and match method
-(name, alias, ISSN, or eISSN). The annotation is included in rendered outputs.
-
-### Phase 10: LLM Triage (Optional)
-
-If `eligible_sections` is non-empty and an LLM provider is configured:
-
-1. **Selection**: Top papers from eligible sections, up to
-   `max_papers_per_section` per section and `max_papers_per_run` total
-2. **Budget check**: Token and cost counters from `budget.py` are consulted
-   before each API call
-3. **Cache lookup**: Prompt hash is checked against `llm_cache.parquet`
-4. **LLM call**: The paper's title, abstract, and topic context are sent to the
-   LLM with a structured prompt asking for score adjustment and TLDR
-5. **Score adjustment**: The LLM's adjustment is clamped to
-   `[-max_score_adjustment, +max_score_adjustment]`
-6. **Fallback**: If the LLM is unavailable, a `fallback_tldr` from the LLM
-   triage path provides a summary; the rule-based `fallback_tldr.py` extracts
-   the first sentences of the abstract as a last resort.
-
-### Phase 11: Output Rendering
-
-Six output formats are rendered (each controlled by `output.yml` toggles):
-
-| Output | Format | Contents |
-|---|---|---|
-| `review_data.json` | JSON | Full structured review data: papers, scores, annotations, triage results, run metadata |
-| `report.md` | Markdown | Human-readable daily briefing with sections, score bands, TLDRs |
-| `papers.csv` | CSV | Flat table of all papers with scores and metadata |
-| `zotero.csv` | CSV | Zotero-importable format with collection assignments |
-| `suppressed.csv` | CSV | Papers that were filtered out, with suppression reasons |
-| `run_summary.json` | JSON | Run-level statistics: counts, timing, health, diagnostics |
-
-### Phase 12: State Update
-
-Four Parquet files are atomically written:
-
-1. **seen_papers.parquet** — new papers are added; existing papers get
-   `last_seen_run` updated
-2. **paper_status.parquet** — user curation decisions from the Review UI are
-   preserved; new papers get `status: active`
-3. **run_index.parquet** — a new row is appended with run metadata
-4. **llm_cache.parquet** — new LLM responses are appended by the cache path.
-   Privacy commit-policy flags require a future enforcement task before they
-   can be treated as complete runtime controls.
-
-### Phase 13: Health Gates
-
-Four gates must pass for the run to be promoted to `outputs/latest/`:
-
-| Gate | Checks | Failure Condition |
-|---|---|---|
-| `source_health` | At least one source returned papers | All attempted sources produced critical failures and zero records |
-| `output_health` | Critical output files exist and are non-empty | `review_data.json` or `run_summary.json` missing |
-| `curation_size` | Curated primary-surface paper count is reasonable | <10 or >200 papers |
-| `exclude_rate` | Technical-exclude rate is within bounds | >50% of papers excluded |
-
-### Phase 14: Notification & Cleanup
-
-- **Email**: If SMTP credentials are configured, a summary email is sent with
-  paper counts, top papers, and a link to the repository
-- **Snapshot pruning**: Snapshots beyond `retain_runs` (30) are deleted
-- **Commit**: If `commit_state` and `commit_outputs_latest` are enabled,
-  changed files are committed and pushed
-
----
-
-## GitHub Actions Integration
-
-The full lifecycle is orchestrated in `.github/workflows/daily.yml`:
-
-```yaml
-Schedule: cron(7 6 * * *)  # Daily at ~14:07 CST
-Permissions: contents: write
-Timeout: 30 minutes
-Steps:
-  1. Checkout repo
-  2. Setup Python 3.12 + uv
-  3. uv sync --frozen
-  4. Readiness check
-  5. Validate config
-  6. Run pipeline (with API keys from secrets)
-  7. Read commit policy from storage.yml
-  8. Commit state + outputs (if policy allows)
-  9. Send notification email
-  10. Collect diagnostics → upload artifact
+```powershell
+uv run lifelit run --config config
+uv run lifelit notify
+uv run lifelit profile compile --online
 ```
 
-A separate workflow (`.github/workflows/validate.yml`) runs on every push and
-PR: ruff lint, mypy type check, config validation, and pytest.
+Treat these as owner-authorized operations only.
+
+## Pipeline Lifecycle
+
+```text
+load config
+-> validate config
+-> compute runtime date window
+-> compile retrieval strategy
+-> retrieve enabled sources unless mode is dry_run
+-> normalize RawRecord objects into CandidatePaper objects
+-> deduplicate into CanonicalPaper objects
+-> enrich metadata
+-> apply filters
+-> compute section-local scores
+-> annotate clinical-trial venue signals
+-> run bounded LLM triage for selected candidates
+-> render full and curated review outputs
+-> update seen/status/run-index state
+-> run health gates
+-> promote healthy output snapshot
+-> write run summary and notify when configured
+```
+
+## Retrieval
+
+The strategy compiler is the offline source of truth for query shape and source
+roles. It compiles topics, journals, seeds, authors, and runtime date windows
+into source-specific plans. Real retrieval adapters are called sequentially and
+use fixed source-policy behavior for rate limits, retry discipline, and
+secret-safe diagnostics.
+
+Daily Semantic Scholar retrieval uses Recommendations, not the deferred daily
+Search feature. Recommendations are locally post-filtered by the run date
+window.
+
+## Filtering
+
+Filtering combines fixed guardrails with configured `filters.yml` rules.
+Current order is:
+
+1. technical exclude;
+2. author-tracked bypass;
+3. manual-import bypass;
+4. persisted hard suppression;
+5. formal published journal whitelist for `formal_retrieval` records;
+6. configured filter rules in YAML order;
+7. publication-type suppression;
+8. recommendation guardrails;
+9. preprint guardrails;
+10. metadata completeness;
+11. technical quality;
+12. default keep.
+
+Filtering is a guardrail layer, not relevance ranking.
+
+## Scoring
+
+The scorer registers 10 signals and computes weighted section-local totals.
+The four macro sections are:
+
+- `author_tracked_manual`
+- `published`
+- `preprinted`
+- `semantic_recommendations`
+
+`config/scoring.yml` section overrides are merged into runtime scoring contexts
+after preset, topic, and journal context construction.
+
+## LLM Triage
+
+LLM triage is optional and bounded by:
+
+- eligible sections;
+- per-section and per-run paper caps;
+- token and cost budget;
+- cache;
+- strict JSON/schema validation;
+- bounded score adjustment.
+
+LLM output can adjust section-local ranking, but it does not perform retrieval,
+mutate config, or override hard suppressions.
+
+## Outputs, State, and Promotion
+
+The run path writes an audit review dataset, curated reading outputs, state
+updates, and a run summary. Health gates decide whether a timestamped snapshot
+is promoted to `outputs/latest/`. Degraded runs preserve diagnostics but should
+not be described as clean successful reading surfaces.
+
+## GitHub Actions
+
+The Daily Pipeline can run the same CLI flow in GitHub Actions using repository
+secrets. The Validate workflow runs local validation without real literature
+APIs, real LLM calls, or SMTP sends.
