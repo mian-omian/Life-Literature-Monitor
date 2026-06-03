@@ -11,9 +11,10 @@ repository it is in.
 
 - In the **full LifeLit implementation repository**, read the authoritative
   governance docs and current source before editing.
-- In the **standalone portal repository**, read the local portal files for
-  orientation, then obtain the full implementation repository before making
-  implementation claims or code changes.
+- In the **standalone portal repository**, read the local portal files and use
+  them as the rebuild specification. Create a new implementation workspace and
+  rebuild LifeLit phase by phase. The full implementation repository is
+  optional audit evidence, not a prerequisite.
 
 ## Layer 1: Operate the Existing Repository
 
@@ -47,17 +48,28 @@ In the standalone portal repository, read:
 
 ```text
 README.md
+REBUILD_FRAMEWORK.md
+MILESTONES.md
+IMPLEMENTATION_SPEC.md
+CONFIG_SCHEMA_CONTRACT.md
+CLI_CONTRACT.md
+DATA_CONTRACTS.md
+WORKFLOW_CONTRACT.md
+TEST_REBUILD_PLAN.md
+AGENT_REPRODUCTION.md
 USER_GUIDE.md
 ARCHITECTURE.md
 WORKFLOW.md
 CONFIG_REFERENCE.md
-AGENT_REPRODUCTION.md
 diagrams/pipeline-flow.md
 diagrams/data-model.md
 ```
 
-Do not treat the standalone portal files as proof of current runtime behavior
-until they are checked against the full implementation repository.
+Treat the standalone portal files as the reconstruction contract. The milestone
+and contract files are binding for rebuild work. If the full implementation
+repository is available, use it to audit exact current behavior; if it is not
+available, rely on the portal's phase specifications, interfaces, data
+contracts, workflow contract, and acceptance commands.
 
 ### Step 3: Classify the Worktree
 
@@ -70,8 +82,8 @@ git status --short --branch --untracked-files=all
 Classify pending changes as implementation diffs, documentation diffs,
 generated run artifacts, worker artifacts, or user-owned config changes.
 
-In the standalone portal repository, this classification is documentation-only
-unless the owner has added implementation files.
+In the standalone portal repository, this classification tells you whether you
+are editing portal docs or creating a new implementation workspace.
 
 ### Step 4: Use Safe Inspection Commands
 
@@ -84,9 +96,8 @@ uv run lifelit review --dry-run
 uv run lifelit notify --dry-run
 ```
 
-These commands require the full implementation repository and installed
-dependencies. They are not available in the standalone portal repository by
-itself.
+These commands run after the agent creates or opens an implementation workspace.
+They are not expected to work in the standalone portal repository by itself.
 
 ### Step 5: Avoid Unsafe Defaults
 
@@ -98,6 +109,10 @@ active task gate allows them.
 
 The rebuild path below is decision-complete enough for an agent to implement in
 phases. Each phase should include tests before moving on.
+
+`MILESTONES.md` is the controlling milestone list. The phase summaries below
+are a compact duplicate for agent prompting; when details differ, the milestone
+and contract files win.
 
 ### Phase 0: Project Scaffold
 

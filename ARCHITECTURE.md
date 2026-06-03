@@ -9,7 +9,7 @@ This portal file is supporting documentation. In the full implementation
 repository, `DESIGN.md`, `docs/user_guide.en.md`, and the source under
 `src/lifelit/` remain the current authority. In the standalone portal
 repository, those files are upstream implementation-repository references, not
-local files.
+local files; this architecture file is the local rebuild map.
 
 ## Module Map
 

@@ -4,7 +4,8 @@ This document explains the current LifeLit run lifecycle and command safety
 boundaries. It is supporting documentation. In the full implementation
 repository, use `docs/user_guide.en.md` and the source for authoritative
 details. In the standalone portal repository, those files are upstream
-implementation-repository references, not local files.
+implementation-repository references, not local files; use this file as the
+workflow contract for reconstruction.
 
 ## Command Risk Levels
 

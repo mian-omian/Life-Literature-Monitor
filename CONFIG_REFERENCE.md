@@ -4,7 +4,8 @@ This is a supporting, source-current overview of the 13 YAML config files. In
 the full implementation repository, `src/lifelit/config.py`, `DESIGN.md`, and
 `docs/user_guide.en.md` remain authoritative. In the standalone portal
 repository, those files are upstream implementation-repository references, not
-local files.
+local files; this config reference is the local schema and behavior contract for
+rebuilding.
 
 Status legend:
 

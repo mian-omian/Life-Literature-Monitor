@@ -26,9 +26,11 @@ This content can appear in two different places:
   `AGENTS.md`, `CURRENT_TASK.md`, `src/lifelit/`, and `docs/user_guide.en.md`
   are upstream implementation-repository files, not local portal files.
 
-When you only have the standalone portal, read the local portal files first and
-ask an agent to treat missing implementation files as upstream context that
-must be obtained from the full LifeLit repository before making code changes.
+When you only have the standalone portal, the portal files are the rebuild
+contract. Ask an agent to use them to scaffold a new implementation repository
+from scratch. The full LifeLit implementation repository is useful for optional
+audit and source comparison, but it is not a prerequisite for rebuilding from
+this portal.
 
 ## Authority
 
@@ -48,17 +50,26 @@ authority wins in this order:
 In the standalone portal repository, the local authority order is:
 
 1. `README.md`
-2. `USER_GUIDE.md`
-3. `ARCHITECTURE.md`
-4. `WORKFLOW.md`
-5. `CONFIG_REFERENCE.md`
-6. `AGENT_REPRODUCTION.md`
-7. `diagrams/`
+2. `REBUILD_FRAMEWORK.md`
+3. `MILESTONES.md`
+4. `IMPLEMENTATION_SPEC.md`
+5. `CONFIG_SCHEMA_CONTRACT.md`
+6. `CLI_CONTRACT.md`
+7. `DATA_CONTRACTS.md`
+8. `WORKFLOW_CONTRACT.md`
+9. `TEST_REBUILD_PLAN.md`
+10. `AGENT_REPRODUCTION.md`
+11. `USER_GUIDE.md`
+12. `ARCHITECTURE.md`
+13. `WORKFLOW.md`
+14. `CONFIG_REFERENCE.md`
+15. `diagrams/`
 
-The standalone portal is enough for orientation and planning, but not enough to
-make implementation edits. Always check the current source under `src/lifelit/`
-in the full LifeLit implementation repository before implementing from this
-portal.
+The standalone portal is intended to be enough for beginner orientation and
+agent-led reconstruction. If the full LifeLit implementation repository is
+available, use `src/lifelit/` and the authoritative docs to audit exact current
+behavior; if it is not available, rebuild from this portal's phase
+specifications and validation commands.
 
 ## What LifeLit Does
 
@@ -128,13 +139,21 @@ If you are in the standalone portal repository, read these local files in
 order:
 
 1. `README.md`
-2. `USER_GUIDE.md`
-3. `ARCHITECTURE.md`
-4. `WORKFLOW.md`
-5. `CONFIG_REFERENCE.md`
-6. `AGENT_REPRODUCTION.md`
-7. `diagrams/pipeline-flow.md`
-8. `diagrams/data-model.md`
+2. `REBUILD_FRAMEWORK.md`
+3. `MILESTONES.md`
+4. `IMPLEMENTATION_SPEC.md`
+5. `CONFIG_SCHEMA_CONTRACT.md`
+6. `CLI_CONTRACT.md`
+7. `DATA_CONTRACTS.md`
+8. `WORKFLOW_CONTRACT.md`
+9. `TEST_REBUILD_PLAN.md`
+10. `AGENT_REPRODUCTION.md`
+11. `USER_GUIDE.md`
+12. `ARCHITECTURE.md`
+13. `WORKFLOW.md`
+14. `CONFIG_REFERENCE.md`
+15. `diagrams/pipeline-flow.md`
+16. `diagrams/data-model.md`
 
 ## Ask an Agent Safely
 
@@ -145,8 +164,10 @@ When asking a coding agent to help:
   `ACCEPTANCE_CRITERIA.md`, `README.md`, `docs/user_guide.en.md`, and
   `docs/documentation_inventory.md` before making changes.
 - If working from the standalone portal repository, tell it to read all local
-  portal files first and then obtain the full implementation repository before
-  editing code or claiming current runtime behavior.
+  portal files first, create a new implementation workspace, and rebuild
+  LifeLit milestone by milestone from `REBUILD_FRAMEWORK.md`,
+  `MILESTONES.md`, and the contract files. If the original implementation
+  repository is available, use it only as optional audit evidence.
 - Do not paste API keys, SMTP passwords, tokens, `.env` values, private
   credentials, or raw secret values.
 - Ask for read-only inspection first when you are unsure.
@@ -157,6 +178,14 @@ When asking a coding agent to help:
 
 | File | Purpose |
 |---|---|
+| `REBUILD_FRAMEWORK.md` | Agent rebuild rules, drift controls, completion definition |
+| `MILESTONES.md` | Sequential rebuild milestones and acceptance commands |
+| `IMPLEMENTATION_SPEC.md` | Required subsystem architecture |
+| `CONFIG_SCHEMA_CONTRACT.md` | Config files, schema areas, validation expectations |
+| `CLI_CONTRACT.md` | Required commands and command behavior |
+| `DATA_CONTRACTS.md` | Core models, outputs, state, provenance |
+| `WORKFLOW_CONTRACT.md` | Run, promotion, Actions, and feedback workflow semantics |
+| `TEST_REBUILD_PLAN.md` | Required test areas and full validation |
 | `ARCHITECTURE.md` | Current architecture and module map |
 | `WORKFLOW.md` | Runtime pipeline walkthrough and command risk boundaries |
 | `CONFIG_REFERENCE.md` | Source-current config implementation status |

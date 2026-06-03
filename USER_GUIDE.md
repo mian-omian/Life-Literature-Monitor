@@ -2,9 +2,8 @@
 
 This guide is the portal's beginner path. In the full LifeLit implementation
 repository, the authoritative user manual is `../docs/user_guide.en.md`. In the
-standalone portal repository, that file is not local; use this guide for
-orientation and obtain the full implementation repository before running or
-editing LifeLit.
+standalone portal repository, that file is not local; use this guide and the
+other portal files as the contract for agent-led reconstruction.
 
 ## 1. Install and Inspect
 
@@ -128,16 +127,19 @@ docs/user_guide.en.md, and docs/documentation_inventory.md before edits.
 
 If this is the standalone Life-Literature-Monitor portal repository, read the
 local README.md, USER_GUIDE.md, ARCHITECTURE.md, WORKFLOW.md,
-CONFIG_REFERENCE.md, AGENT_REPRODUCTION.md, and diagrams first. Do not make
-implementation claims or code edits until you also inspect the full LifeLit
-implementation repository.
+CONFIG_REFERENCE.md, REBUILD_FRAMEWORK.md, MILESTONES.md,
+IMPLEMENTATION_SPEC.md, CONFIG_SCHEMA_CONTRACT.md, CLI_CONTRACT.md,
+DATA_CONTRACTS.md, WORKFLOW_CONTRACT.md, TEST_REBUILD_PLAN.md,
+AGENT_REPRODUCTION.md, and diagrams first. Create a new implementation
+workspace and rebuild from the portal milestones. Treat the original LifeLit
+implementation repository, if available, as optional audit evidence.
 
-Start with read-only review. Do not edit until you identify the active task
-gate and allowed files in the implementation repository.
+Start with read-only review. If you are rebuilding from the standalone portal,
+create your own task checklist before edits and validate each phase before
+moving on.
 ```
 
-For development work in the implementation repository, the agent must obey the
-task gate. For documentation work in the implementation repository, it must
-still record validation and update `RUN_LOG.md`. The standalone portal
-repository has no LifeLit runtime task gate; treat it as a documentation mirror
-unless the owner explicitly says otherwise.
+For development work in the original implementation repository, the agent must
+obey the task gate. For standalone-portal reconstruction, `MILESTONES.md` is
+the task gate: implement one milestone at a time, run its acceptance commands,
+and keep examples domain-neutral.
