@@ -13,10 +13,28 @@ This portal is written for two audiences:
 2. **Coding agents** that need a source-current map for reproducing the current
    feature set without copying stale historical specifications.
 
+## Repository Contexts
+
+This content can appear in two different places:
+
+- **Full LifeLit implementation repository**: this portal is located at
+  `project-portal/`, next to implementation files such as `AGENTS.md`,
+  `CURRENT_TASK.md`, `TASKS.md`, `DESIGN.md`, `ACCEPTANCE_CRITERIA.md`,
+  `src/lifelit/`, `docs/`, `config/`, and `tests/`.
+- **Standalone portal repository**: this portal is the repository root, such as
+  `mian-omian/Life-Literature-Monitor`. In that repository, files like
+  `AGENTS.md`, `CURRENT_TASK.md`, `src/lifelit/`, and `docs/user_guide.en.md`
+  are upstream implementation-repository files, not local portal files.
+
+When you only have the standalone portal, read the local portal files first and
+ask an agent to treat missing implementation files as upstream context that
+must be obtained from the full LifeLit repository before making code changes.
+
 ## Authority
 
-This portal is supporting documentation. If it conflicts with repository
-authority, the repository authority wins in this order:
+In the full implementation repository, this portal is supporting documentation.
+If it conflicts with implementation-repository authority, the implementation
+authority wins in this order:
 
 1. `AGENTS.md`
 2. `CURRENT_TASK.md`
@@ -25,10 +43,22 @@ authority, the repository authority wins in this order:
 5. `ACCEPTANCE_CRITERIA.md`
 6. `README.md` and `docs/user_guide.en.md`
 7. `docs/documentation_inventory.md`
-8. this `project-portal/`
+8. this portal
 
-Always check the current source under `src/lifelit/` before implementing from
-this portal.
+In the standalone portal repository, the local authority order is:
+
+1. `README.md`
+2. `USER_GUIDE.md`
+3. `ARCHITECTURE.md`
+4. `WORKFLOW.md`
+5. `CONFIG_REFERENCE.md`
+6. `AGENT_REPRODUCTION.md`
+7. `diagrams/`
+
+The standalone portal is enough for orientation and planning, but not enough to
+make implementation edits. Always check the current source under `src/lifelit/`
+in the full LifeLit implementation repository before implementing from this
+portal.
 
 ## What LifeLit Does
 
@@ -83,7 +113,7 @@ pipeline run, not a read-only inspection command.
 
 ## Beginner Learning Path
 
-Read these files in order:
+If you are in the full implementation repository, read these files in order:
 
 1. `../README.md` — current repository overview and operating model.
 2. `../docs/user_guide.en.md` — authoritative user guide.
@@ -94,13 +124,29 @@ Read these files in order:
 7. `CONFIG_REFERENCE.md` — config field status.
 8. `AGENT_REPRODUCTION.md` — how to ask an agent to reproduce or rebuild.
 
+If you are in the standalone portal repository, read these local files in
+order:
+
+1. `README.md`
+2. `USER_GUIDE.md`
+3. `ARCHITECTURE.md`
+4. `WORKFLOW.md`
+5. `CONFIG_REFERENCE.md`
+6. `AGENT_REPRODUCTION.md`
+7. `diagrams/pipeline-flow.md`
+8. `diagrams/data-model.md`
+
 ## Ask an Agent Safely
 
 When asking a coding agent to help:
 
-- Tell it to read `AGENTS.md`, `CURRENT_TASK.md`, `TASKS.md`, `DESIGN.md`,
-  `ACCEPTANCE_CRITERIA.md`, `README.md`, and `docs/user_guide.en.md` before
-  making changes.
+- If working in the full implementation repository, tell it to read
+  `AGENTS.md`, `CURRENT_TASK.md`, `TASKS.md`, `DESIGN.md`,
+  `ACCEPTANCE_CRITERIA.md`, `README.md`, `docs/user_guide.en.md`, and
+  `docs/documentation_inventory.md` before making changes.
+- If working from the standalone portal repository, tell it to read all local
+  portal files first and then obtain the full implementation repository before
+  editing code or claiming current runtime behavior.
 - Do not paste API keys, SMTP passwords, tokens, `.env` values, private
   credentials, or raw secret values.
 - Ask for read-only inspection first when you are unsure.

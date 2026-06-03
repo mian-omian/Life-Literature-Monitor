@@ -5,9 +5,11 @@ Click CLI orchestrates a full run from strict YAML config to output artifacts
 and state updates. It is designed for private local use and private GitHub
 Actions operation.
 
-This portal file is supporting documentation. `DESIGN.md`,
-`docs/user_guide.en.md`, and the source under `src/lifelit/` remain the current
-authority.
+This portal file is supporting documentation. In the full implementation
+repository, `DESIGN.md`, `docs/user_guide.en.md`, and the source under
+`src/lifelit/` remain the current authority. In the standalone portal
+repository, those files are upstream implementation-repository references, not
+local files.
 
 ## Module Map
 

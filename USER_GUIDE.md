@@ -1,7 +1,10 @@
 # Beginner User Guide
 
-This guide is the portal's beginner path. The authoritative user manual is
-`../docs/user_guide.en.md`; use that document for final operational decisions.
+This guide is the portal's beginner path. In the full LifeLit implementation
+repository, the authoritative user manual is `../docs/user_guide.en.md`. In the
+standalone portal repository, that file is not local; use this guide for
+orientation and obtain the full implementation repository before running or
+editing LifeLit.
 
 ## 1. Install and Inspect
 
@@ -119,11 +122,22 @@ Do not put API keys, SMTP passwords, tokens, or `.env` values in config files.
 Use a prompt like:
 
 ```text
-Read AGENTS.md, CURRENT_TASK.md, TASKS.md, DESIGN.md,
-ACCEPTANCE_CRITERIA.md, README.md, docs/user_guide.en.md, and
-docs/documentation_inventory.md. Do a read-only review first. Do not edit until
-you identify the active task gate and allowed files.
+If this is the full LifeLit implementation repository, read AGENTS.md,
+CURRENT_TASK.md, TASKS.md, DESIGN.md, ACCEPTANCE_CRITERIA.md, README.md,
+docs/user_guide.en.md, and docs/documentation_inventory.md before edits.
+
+If this is the standalone Life-Literature-Monitor portal repository, read the
+local README.md, USER_GUIDE.md, ARCHITECTURE.md, WORKFLOW.md,
+CONFIG_REFERENCE.md, AGENT_REPRODUCTION.md, and diagrams first. Do not make
+implementation claims or code edits until you also inspect the full LifeLit
+implementation repository.
+
+Start with read-only review. Do not edit until you identify the active task
+gate and allowed files in the implementation repository.
 ```
 
-For development work, the agent must obey the task gate. For documentation work,
-it must still record validation and update `RUN_LOG.md`.
+For development work in the implementation repository, the agent must obey the
+task gate. For documentation work in the implementation repository, it must
+still record validation and update `RUN_LOG.md`. The standalone portal
+repository has no LifeLit runtime task gate; treat it as a documentation mirror
+unless the owner explicitly says otherwise.

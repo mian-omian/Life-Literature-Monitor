@@ -6,14 +6,31 @@ This guide has two layers:
    current LifeLit project with agent assistance.
 2. **Rebuild the current feature set** in ordered implementation phases.
 
-This is supporting guidance. Before implementing, an agent must read the
-authoritative repository docs and current source.
+This is supporting guidance. Before implementing, an agent must know which
+repository it is in.
+
+- In the **full LifeLit implementation repository**, read the authoritative
+  governance docs and current source before editing.
+- In the **standalone portal repository**, read the local portal files for
+  orientation, then obtain the full implementation repository before making
+  implementation claims or code changes.
 
 ## Layer 1: Operate the Existing Repository
 
-### Step 1: Read the Authority Set
+### Step 1: Identify the Repository Context
 
-Read:
+If the repository contains `src/lifelit/`, `config/`, `tests/`, `AGENTS.md`,
+and `CURRENT_TASK.md`, it is the full implementation repository.
+
+If the repository contains only portal files such as `README.md`,
+`ARCHITECTURE.md`, `WORKFLOW.md`, `CONFIG_REFERENCE.md`, `USER_GUIDE.md`,
+`AGENT_REPRODUCTION.md`, and `diagrams/`, it is the standalone portal
+repository.
+
+### Step 2: Read the Relevant Authority Set
+
+In the full implementation repository, read:
+
 
 ```text
 AGENTS.md
@@ -26,7 +43,23 @@ docs/user_guide.en.md
 docs/documentation_inventory.md
 ```
 
-### Step 2: Classify the Worktree
+In the standalone portal repository, read:
+
+```text
+README.md
+USER_GUIDE.md
+ARCHITECTURE.md
+WORKFLOW.md
+CONFIG_REFERENCE.md
+AGENT_REPRODUCTION.md
+diagrams/pipeline-flow.md
+diagrams/data-model.md
+```
+
+Do not treat the standalone portal files as proof of current runtime behavior
+until they are checked against the full implementation repository.
+
+### Step 3: Classify the Worktree
 
 Run:
 
@@ -37,7 +70,10 @@ git status --short --branch --untracked-files=all
 Classify pending changes as implementation diffs, documentation diffs,
 generated run artifacts, worker artifacts, or user-owned config changes.
 
-### Step 3: Use Safe Inspection Commands
+In the standalone portal repository, this classification is documentation-only
+unless the owner has added implementation files.
+
+### Step 4: Use Safe Inspection Commands
 
 ```powershell
 uv run lifelit --help
@@ -48,7 +84,11 @@ uv run lifelit review --dry-run
 uv run lifelit notify --dry-run
 ```
 
-### Step 4: Avoid Unsafe Defaults
+These commands require the full implementation repository and installed
+dependencies. They are not available in the standalone portal repository by
+itself.
+
+### Step 5: Avoid Unsafe Defaults
 
 Do not run real API, LLM, SMTP, commit, push, deletion, dependency update, or
 workflow-changing commands unless the user explicitly authorizes them and the
